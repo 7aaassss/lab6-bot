@@ -8,7 +8,7 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import Message
-
+import config
 
 BOT_CONFIG = {
     'intents': {
@@ -51,6 +51,24 @@ BOT_CONFIG = {
         'Слишком сложный вопрос для меня.',
     ]
 }
+PRODUCTS = [
+    {
+        'name': 'Шамупнь Лошадиная Сила',
+        'description': 'Отличный шампунь, подходящий для всех типов волос',
+        'price': '500 руб.'
+    },
+    {
+        'name': 'Гель для душа Акс',
+        'description': 'Отличный выбор для спортсменов, помогающий нейтрализовать неприятный запах на долгое время',
+        'price': '399 руб.'
+    },
+    {
+        'name': 'Зубная паста',
+        'description': 'Отбеливание зубов, придание им естественного цвета, нейтрализация неприятного запаха',
+        'price': '299 руб.'
+    },
+
+]
 
 X_text = []  # ['Хэй', 'хаюхай', 'Хаюшки', ...]
 y = []  # ['hello', 'hello', 'hello', ...]
@@ -164,66 +182,74 @@ stats = {'intent': 0, 'generate': 0, 'failure': 0}
 
 
 def response(replica):
-    # NLU
+    global dialog_steps
+    dialog_steps += 1  # Увеличиваем шаг диалога
+
+
     intent = classify_intent(replica)
 
-    # Answer generation
 
-    # выбор заготовленной реплики
     if intent:
         answer = get_answer_by_intent(intent)
         if answer:
             stats['intent'] += 1
+
+            # Вставляем рекламу каждые 3-5 шагов диалога
+            if dialog_steps % random.randint(3, 5) == 0:
+                ad = show_ad()
+                return f"{answer}\n\n{ad}"
+
             return answer
 
-    # вызов генеративной модели
+    # Генерация ответа
     answer = generate_answer(replica)
     if answer:
         stats['generate'] += 1
+
+        # Вставляем рекламу каждые 3-5 шагов диалога
+        if dialog_steps % random.randint(3, 5) == 0:
+            ad = show_ad()
+            return f"{answer}\n\n{ad}"
+
         return answer
 
-    # берем заглушку
     stats['failure'] += 1
-    return get_failure_phrase()
+    failure_answer = get_failure_phrase()
+
+    # Вставляем рекламу каждые 3-5 шагов диалога
+    if dialog_steps % random.randint(3, 5) == 0:
+        ad = show_ad()
+        return f"{failure_answer}\n\n{ad}"
+
+    return failure_answer
 
 
+dialog_steps = 0  # переменная для отслеживания шагов диалога
 
-TOKEN = '7848683745:AAHAXMg1qHCXBG0E91XW8kPK6iVQtCcGFjg'
+def show_ad():
+    """Возвращает случайное рекламное сообщение из списка товаров."""
+    product = random.choice(PRODUCTS)
+    return f"Кстати, вам может понравиться {product['name']}! {product['description']} Всего за {product['price']}."
+
+
 dp = Dispatcher()
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    """
-    This handler receives messages with `/start` command
-    """
-    # Most event objects have aliases for API methods that can be called in events' context
-    # For example if you want to answer to incoming message you can use `message.answer(...)` alias
-    # and the target chat will be passed to :ref:`aiogram.methods.send_message.SendMessage`
-    # method automatically or call API method directly via
-    # Bot instance: `bot.send_message(chat_id=message.chat.id, ...)`
     await message.answer('Напиши мне что-то и я тебе отвечу!')
 
 
 @dp.message()
 async def echo_handler(message: Message) -> None:
-    """
-    Handler will forward receive a message back to the sender
-
-    By default, message handler will handle all message types (like a text, photo, sticker etc.)
-    """
     try:
         answ = response(message.text)
         await message.answer(answ)
     except TypeError:
-        # But not all the types is supported to be copied so need to handle it
         await message.answer("Nice try!")
 
 
 async def main() -> None:
-    # Initialize Bot instance with default bot properties which will be passed to all API calls
-    bot = Bot(token=TOKEN)
-
-    # And the run events dispatching
+    bot = Bot(token=config.Config.TOKEN)
     await dp.start_polling(bot)
 
 
